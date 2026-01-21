@@ -79,3 +79,22 @@ def enregistrer_client():
                                                                                                                                        
 if __name__ == "__main__":
   app.run(debug=True)
+
+
+@app.route('/fiche_nom/<nom>')
+def fiche_nom(nom):
+    # 1. Protection (Basic Auth : user / 12345)
+    auth = request.authorization
+    if not auth or auth.username != 'user' or auth.password != '12345':
+        return 'Accès refusé ! Identifiants incorrects.', 401
+    conn = get_db_connection()
+    clients = conn.execute('SELECT * FROM clients WHERE nom = ?', (nom,)).fetchall()
+    conn.close()
+
+    if len(clients) == 0:
+        return "<h1>Aucun client trouvé avec ce nom.</h1>"
+    html = "<h1>Résultats de la recherche :</h1><ul>"
+    for client in clients:
+        html += f"<li>ID: {client['id']} - {client['prenom']} {client['nom']}</li>"
+    html += "</ul>"
+    return html
