@@ -1,100 +1,48 @@
-from flask import Flask, render_template_string, render_template, jsonify, request, redirect, url_for, session
-from flask import render_template
-from flask import json
-from urllib.request import urlopen
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 
-app = Flask(__name__)                                                                                                                  
-app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'  # Clé secrète pour les sessions
+app = Flask(__name__)
 
-# Fonction pour créer une clé "authentifie" dans la session utilisateur
-def est_authentifie():
-    return session.get('authentifie')
+# Fonction pour se connecter à la base de données
+def get_db_connection():
+    # On se connecte au fichier créé juste avant
+    conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
+# ROUTE 1 : Accueil - Affiche la liste des livres
 @app.route('/')
-def hello_world():
-    return render_template('hello.html')
-
-@app.route('/lecture')
-def lecture():
-    if not est_authentifie():
-        # Rediriger vers la page d'authentification si l'utilisateur n'est pas authentifié
-        return redirect(url_for('authentification'))
-
-  # Si l'utilisateur est authentifié
-    return "<h2>Bravo, vous êtes authentifié</h2>"
-
-@app.route('/authentification', methods=['GET', 'POST'])
-def authentification():
-    if request.method == 'POST':
-        # Vérifier les identifiants
-        if request.form['username'] == 'admin' and request.form['password'] == 'password': # password à cacher par la suite
-            session['authentifie'] = True
-            # Rediriger vers la route lecture après une authentification réussie
-            return redirect(url_for('lecture'))
-        else:
-            # Afficher un message d'erreur si les identifiants sont incorrects
-            return render_template('formulaire_authentification.html', error=True)
-
-    return render_template('formulaire_authentification.html', error=False)
-
-@app.route('/fiche_client/<int:post_id>')
-def Readfiche(post_id):
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clients WHERE id = ?', (post_id,))
-    data = cursor.fetchall()
-    conn.close()
-    # Rendre le template HTML et transmettre les données
-    return render_template('read_data.html', data=data)
-
-@app.route('/consultation/')
-def ReadBDD():
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clients;')
-    data = cursor.fetchall()
-    conn.close()
-    return render_template('read_data.html', data=data)
-
-@app.route('/enregistrer_client', methods=['GET'])
-def formulaire_client():
-    return render_template('formulaire.html')  # afficher le formulaire
-
-@app.route('/enregistrer_client', methods=['POST'])
-def enregistrer_client():
-    nom = request.form['nom']
-    prenom = request.form['prenom']
-
-    # Connexion à la base de données
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-
-    # Exécution de la requête SQL pour insérer un nouveau client
-    cursor.execute('INSERT INTO clients (created, nom, prenom, adresse) VALUES (?, ?, ?, ?)', (1002938, nom, prenom, "ICI"))
-    conn.commit()
-    conn.close()
-    return redirect('/consultation/')  # Rediriger vers la page d'accueil après l'enregistrement
-                                                                                                                                       
-if __name__ == "__main__":
-  app.run(debug=True)
-
-
-@app.route('/fiche_nom/<nom>')
-def fiche_nom(nom):
-    # 1. Protection (Basic Auth : user / 12345)
-    auth = request.authorization
-    if not auth or auth.username != 'user' or auth.password != '12345':
-        return 'Accès refusé ! Identifiants incorrects.', 401
+def index():
     conn = get_db_connection()
-    clients = conn.execute('SELECT * FROM clients WHERE nom = ?', (nom,)).fetchall()
+    livres = conn.execute('SELECT * FROM livres').fetchall()
     conn.close()
-
-    if len(clients) == 0:
-        return "<h1>Aucun client trouvé avec ce nom.</h1>"
-    html = "<h1>Résultats de la recherche :</h1><ul>"
-    for client in clients:
-        html += f"<li>ID: {client['id']} - {client['prenom']} {client['nom']}</li>"
+    
+    # Construction d'un HTML simple pour voir le résultat tout de suite
+    html = "<h1>📚 Ma Bibliothèque</h1>"
+    html += "<p><a href='/recherche'>🔍 Rechercher un livre</a></p>"
+    html += "<ul>"
+    for livre in livres:
+        stock_text = f"✅ (Dispo: {livre['stock']})" if livre['stock'] > 0 else "❌ Rupture"
+        html += f"<li><b>{livre['titre']}</b> de {livre['auteur']} - {stock_text}</li>"
     html += "</ul>"
+    return html
+
+# ROUTE 2 : Recherche de livres (Demandé dans la Séquence 6)
+@app.route('/recherche')
+def recherche():
+    query = request.args.get('q') # Récupère le mot tapé dans l'URL
+    html = "<h1>🔍 Recherche de livre</h1>"
+    html += "<form><input name='q' placeholder='Titre du livre...'><input type='submit' value='Chercher'></form>"
+
+    if query:
+        conn = get_db_connection()
+        # Le symbole % permet de chercher "ce qui contient le texte"
+        livres = conn.execute('SELECT * FROM livres WHERE titre LIKE ?', ('%' + query + '%',)).fetchall()
+        conn.close()
+        
+        html += "<h3>Résultats :</h3><ul>"
+        for livre in livres:
+            html += f"<li>{livre['titre']} ({livre['auteur']})</li>"
+        html += "</ul>"
+        
     return html
