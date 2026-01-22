@@ -15,3 +15,11 @@ CREATE TABLE emprunts (
     date_emprunt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (livre_id) REFERENCES livres (id)
 );
+
+CREATE TABLE IF NOT EXISTS taches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titre TEXT NOT NULL,
+    description TEXT,
+    date_echeance DATE,
+    est_terminee BOOLEAN NOT NULL DEFAULT 0
+);
